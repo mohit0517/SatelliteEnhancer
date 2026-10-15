@@ -1,0 +1,23 @@
+# Qt build artifacts
+build/
+*.pro.user
+*.pro.user.*
+debug/
+release/
+
+# Data (not code — excluded)
+data/raw/
+data/enhanced/
+data/results/
+
+# Compiled binaries
+*.exe
+*.o
+*.obj
+*.dll
+*.lib
+
+# IDE
+.vs/
+.vscode/
+.idea/
