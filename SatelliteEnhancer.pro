@@ -18,8 +18,12 @@ CONFIG(debug, debug|release) {
 SOURCES += \
     src/main.cpp \
     src/preprocess.cpp \
-    src/linear_enhance.cpp
+    src/linear_enhance.cpp \
+    src/nonlinear.cpp \
+    src/filters.cpp
 
 HEADERS += \
     include/preprocess.h \
-    include/linear_enhance.h
+    include/linear_enhance.h \
+    include/nonlinear.h \
+    include/filters.h
