@@ -2,6 +2,7 @@
 #include "linear_enhance.h"
 #include "nonlinear.h"
 #include "filters.h"
+#include "edge_enhance.h"
 #include <opencv2/core/utils/logger.hpp>
 
 #include <iostream>
@@ -18,7 +19,7 @@ int main(int argc, char** argv) {
     std::string enhancedDir = (argc > 2) ? argv[2] : "data/enhanced";
 
     std::cout << "============================================\n";
-    std::cout << " Satellite Image Enhancement - Week 3\n";
+    std::cout << " Satellite Image Enhancement - Week 4\n";
     std::cout << "============================================\n";
     std::cout << " Input  : " << rawDir      << "\n";
     std::cout << " Output : " << enhancedDir << "\n\n";
@@ -81,7 +82,13 @@ int main(int argc, char** argv) {
             rs::saveImage(base + "_unsharp.png",   rs::unsharpMask(img, 5, 1.0, 1.5));
             rs::saveImage(base + "_bilateral.png", rs::bilateralFilter(img, 9, 75, 75));
 
-            std::cout << "  -> saved 19 enhanced versions\n\n";
+            // ---------- Week 4: Edge Enhancement ----------
+            rs::saveImage(base + "_roberts.png",   rs::robertsEdge(img));
+            rs::saveImage(base + "_sobel.png",     rs::sobelEdge(img));
+            rs::saveImage(base + "_laplacian.png", rs::laplacianEdge(img));
+            rs::saveImage(base + "_lap_sharp.png", rs::laplacianSharpen(img));
+
+            std::cout << "  -> saved 23 enhanced versions\n\n";
             ++processed;
         }
         catch (const std::exception& e) {
