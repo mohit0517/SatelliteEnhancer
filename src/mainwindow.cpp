@@ -196,8 +196,14 @@ void MainWindow::on_btnApply_clicked() {
     double mse = rs::computeMSE(refImg, enhancedImage);
     double psnr = rs::computePSNR(refImg, enhancedImage);
     double ssim = rs::computeSSIM(refImg, enhancedImage);
+    double entropy = rs::computeEntropy(enhancedImage);
+    double contrast = rs::computeContrast(enhancedImage);
 
-    updateMetrics(comboTech->currentText(), mse, psnr, ssim);
+    // Update the metrics UI directly (or modify updateMetrics to accept these)
+    textMetrics->append("\n--- METRICS ---");
+    textMetrics->append(QString("Technique: %1").arg(comboTech->currentText()));
+    textMetrics->append(QString("PSNR: %1 dB | SSIM: %2").arg(psnr, 0, 'f', 2).arg(ssim, 0, 'f', 4));
+    textMetrics->append(QString("Entropy: %1 | Contrast: %2").arg(entropy, 0, 'f', 2).arg(contrast, 0, 'f', 2));
 }
 
 void MainWindow::on_btnExport_clicked() {

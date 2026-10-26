@@ -14,6 +14,12 @@ double computePSNR(const cv::Mat& img1, const cv::Mat& img2);
 // Calculates Structural Similarity Index (SSIM)
 double computeSSIM(const cv::Mat& img1, const cv::Mat& img2);
 
+// Calculates Entropy (Information content)
+double computeEntropy(const cv::Mat& img);
+
+// Calculates Contrast (Standard deviation)
+double computeContrast(const cv::Mat& img);
+
 } // namespace rs
 
 #endif // METRICS_H

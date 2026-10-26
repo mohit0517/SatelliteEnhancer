@@ -1,5 +1,6 @@
 #include "metrics.h"
 #include <cmath>
+#include <cmath>
 
 namespace rs {
 
@@ -64,5 +65,35 @@ double computeSSIM(const cv::Mat& img1, const cv::Mat& img2) {
     // Average across channels (or just take channel 0 if grayscale)
     return (mssim[0] + mssim[1] + mssim[2]) / 3.0;
 }
+// Entropy: Measures the amount of information/detail (Higher is better)
+double computeEntropy(const cv::Mat& img) {
+    cv::Mat gray;
+    if (img.channels() == 3) cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+    else gray = img;
 
+    int histSize = 256;
+    float range[] = {0, 256};
+    const float* histRange = {range};
+    cv::Mat hist;
+    cv::calcHist(&gray, 1, 0, cv::Mat(), hist, 1, &histSize, &histRange);
+
+    double totalPixels = gray.total();
+    double entropy = 0.0;
+    for (int i = 0; i < 256; ++i) {
+        double p = hist.at<float>(i) / totalPixels;
+        if (p > 0) entropy -= p * std::log2(p);
+    }
+    return entropy;
+}
+
+// Contrast: Standard deviation of pixel intensities (Higher = more contrast)
+double computeContrast(const cv::Mat& img) {
+    cv::Mat gray;
+    if (img.channels() == 3) cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+    else gray = img;
+
+    cv::Scalar mean, stddev;
+    cv::meanStdDev(gray, mean, stddev);
+    return stddev[0];
+}
 } // namespace rs
