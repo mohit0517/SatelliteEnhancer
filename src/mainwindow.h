@@ -7,7 +7,19 @@
 #include <QComboBox>
 #include <QTextEdit>
 #include <QProgressBar>
+#include <QGraphicsView>
+#include <QGraphicsScene>
+#include <QWheelEvent>
 #include <opencv2/opencv.hpp>
+
+// Custom GraphicsView to handle Zoom and Pan
+class ZoomPanView : public QGraphicsView {
+    Q_OBJECT
+public:
+    explicit ZoomPanView(QWidget *parent = nullptr);
+protected:
+    void wheelEvent(QWheelEvent *event) override;
+};
 
 class MainWindow : public QMainWindow
 {
@@ -22,23 +34,24 @@ private slots:
     void on_btnApply_clicked();
     void on_btnExport_clicked();
     void on_btnReset_clicked();
+    void on_btnBatch_clicked();
 
 private:
-    // Core Data
     cv::Mat originalImage;
     cv::Mat enhancedImage;
 
     // UI Elements
-    QLabel *labelOriginal;
-    QLabel *labelEnhaced;
+    QGraphicsScene *sceneOriginal;
+    QGraphicsScene *sceneEnhanced;
+    ZoomPanView *viewOriginal;
+    ZoomPanView *viewEnhanced;
+
     QComboBox *comboTech;
     QTextEdit *textMetrics;
     QProgressBar *progressBar;
 
-    // Helpers
-    void displayImage(const cv::Mat& img, QLabel* label);
+    void displayImage(const cv::Mat& img, QGraphicsScene* scene);
     void updateMetadata(const QString& fileName, const cv::Mat& img);
-    void updateMetrics(const QString& techName, double mse, double psnr, double ssim);
 };
 
 #endif // MAINWINDOW_H

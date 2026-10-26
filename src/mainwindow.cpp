@@ -6,7 +6,11 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QWidget>
-#include <QFrame>
+#include <QGraphicsPixmapItem>
+#include <QScrollBar>
+#include <QDir>
+#include <QFileInfoList>
+#include <fstream>
 
 #include "preprocess.h"
 #include "linear_enhance.h"
@@ -15,78 +19,83 @@
 #include "edge_enhance.h"
 #include "metrics.h"
 
-MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent)
-{
-    // 1. Main Window Setup
+// --- Custom Zoom/Pan Class ---
+ZoomPanView::ZoomPanView(QWidget *parent) : QGraphicsView(parent) {
+    setDragMode(QGraphicsView::ScrollHandDrag);
+    setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
+    setRenderHint(QPainter::SmoothPixmapTransform);
+    setStyleSheet("background-color: #181825; border: 2px dashed #45475a; border-radius: 10px;");
+}
+
+void ZoomPanView::wheelEvent(QWheelEvent *event) {
+    double scaleFactor = 1.15;
+    if (event->angleDelta().y() < 0) scaleFactor = 1.0 / scaleFactor;
+    scale(scaleFactor, scaleFactor);
+}
+
+// --- Main Window ---
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setWindowTitle("Remote Sensing & GIS Image Analysis");
     resize(1400, 900);
+
     setStyleSheet(
         "QMainWindow { background-color: #1e1e2e; }"
-        "QWidget { color: #cdd6f4; font-family: 'Segoe UI', Arial, sans-serif; }"
-        "QLabel { font-size: 14px; }"
+        "QWidget { color: #cdd6f4; font-family: 'Segoe UI'; }"
         "QPushButton { background-color: #89b4fa; color: #11111b; border-radius: 6px; padding: 10px; font-weight: bold; }"
         "QPushButton:hover { background-color: #b4befe; }"
         "QComboBox { background-color: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 6px; padding: 6px; }"
-        "QTextEdit { background-color: #181825; color: #a6e3a1; border: 1px solid #45475a; border-radius: 6px; padding: 8px; font-family: Consolas, monospace; }"
-        "QProgressBar { border: 1px solid #45475a; border-radius: 5px; text-align: center; background-color: #181825; }"
-        "QProgressBar::chunk { background-color: #a6e3a1; width: 20px; }"
+        "QTextEdit { background-color: #181825; color: #a6e3a1; border: 1px solid #45475a; border-radius: 6px; padding: 8px; font-family: Consolas; }"
         );
 
-    // 2. Create Central Widget and Main Layout (Left/Right Split)
     QWidget *centralWidget = new QWidget(this);
     setCentralWidget(centralWidget);
     QHBoxLayout *mainLayout = new QHBoxLayout(centralWidget);
-    mainLayout->setContentsMargins(20, 20, 20, 20);
-    mainLayout->setSpacing(20);
 
-    // --- LEFT PANEL (Images) ---
+    // --- LEFT PANEL ---
     QWidget *leftPanel = new QWidget();
     QVBoxLayout *leftLayout = new QVBoxLayout(leftPanel);
+    QHBoxLayout *imageLayout = new QHBoxLayout();
 
-    // Image Titles
-    QHBoxLayout *imageTitles = new QHBoxLayout();
+    QVBoxLayout *origLayout = new QVBoxLayout();
     QLabel *titleOrig = new QLabel("Original Satellite Image");
     titleOrig->setAlignment(Qt::AlignCenter);
     titleOrig->setStyleSheet("font-size: 16px; font-weight: bold; color: #89b4fa;");
+    sceneOriginal = new QGraphicsScene(this);
+    viewOriginal = new ZoomPanView();
+    viewOriginal->setScene(sceneOriginal);
+    origLayout->addWidget(titleOrig);
+    origLayout->addWidget(viewOriginal);
+
+    QVBoxLayout *enhLayout = new QVBoxLayout();
     QLabel *titleEnh = new QLabel("Processed / Enhanced Image");
     titleEnh->setAlignment(Qt::AlignCenter);
     titleEnh->setStyleSheet("font-size: 16px; font-weight: bold; color: #a6e3a1;");
-    imageTitles->addWidget(titleOrig);
-    imageTitles->addWidget(titleEnh);
+    sceneEnhanced = new QGraphicsScene(this);
+    viewEnhanced = new ZoomPanView();
+    viewEnhanced->setScene(sceneEnhanced);
+    enhLayout->addWidget(titleEnh);
+    enhLayout->addWidget(viewEnhanced);
 
-    // Image Displays
-    QHBoxLayout *imageLayout = new QHBoxLayout();
-    labelOriginal = new QLabel("No Image Loaded");
-    labelOriginal->setAlignment(Qt::AlignCenter);
-    labelOriginal->setStyleSheet("background-color: #181825; border: 2px dashed #45475a; border-radius: 10px;");
-    labelOriginal->setMinimumSize(500, 500);
-
-    labelEnhaced = new QLabel("Awaiting Processing...");
-    labelEnhaced->setAlignment(Qt::AlignCenter);
-    labelEnhaced->setStyleSheet("background-color: #181825; border: 2px dashed #45475a; border-radius: 10px;");
-    labelEnhaced->setMinimumSize(500, 500);
-
-    imageLayout->addWidget(labelOriginal);
-    imageLayout->addWidget(labelEnhaced);
-
-    leftLayout->addLayout(imageTitles);
+    imageLayout->addLayout(origLayout);
+    imageLayout->addLayout(enhLayout);
     leftLayout->addLayout(imageLayout);
 
-    // --- RIGHT PANEL (Controls & Data) ---
+    // --- RIGHT PANEL ---
     QWidget *rightPanel = new QWidget();
-    rightPanel->setFixedWidth(400); // Dashboard sidebar width
+    rightPanel->setFixedWidth(400);
     QVBoxLayout *rightLayout = new QVBoxLayout(rightPanel);
 
-    // Controls
     QPushButton *btnLoad = new QPushButton("📁 Load Satellite Image");
     connect(btnLoad, &QPushButton::clicked, this, &MainWindow::on_btnLoad_clicked);
 
     comboTech = new QComboBox();
-    comboTech->addItems({"CLAHE (Contrast Enhancement)", "Histogram Equalization", "Gamma Correction", "Median Filter (Denoise)", "Unsharp Mask (Sharpen)", "Sobel Edge Detection"});
+    comboTech->addItems({"CLAHE", "Histogram Equalization", "Gamma Correction", "Median Filter", "Unsharp Mask", "Sobel Edge"});
 
     QPushButton *btnApply = new QPushButton("⚡ Apply Enhancement");
     connect(btnApply, &QPushButton::clicked, this, &MainWindow::on_btnApply_clicked);
+
+    QPushButton *btnBatch = new QPushButton("📂 Batch Process Folder");
+    connect(btnBatch, &QPushButton::clicked, this, &MainWindow::on_btnBatch_clicked);
 
     QPushButton *btnExport = new QPushButton("💾 Export Processed Image");
     connect(btnExport, &QPushButton::clicked, this, &MainWindow::on_btnExport_clicked);
@@ -94,38 +103,35 @@ MainWindow::MainWindow(QWidget *parent)
     QPushButton *btnReset = new QPushButton("🔄 Reset to Original");
     connect(btnReset, &QPushButton::clicked, this, &MainWindow::on_btnReset_clicked);
 
-    // Metrics Panel
     textMetrics = new QTextEdit();
     textMetrics->setReadOnly(true);
-    textMetrics->setText("--- AWAITING DATA ---\nLoad an image to view metadata.");
+    textMetrics->setText("--- AWAITING DATA ---\nLoad an image to view metadata.\n\n💡 TIP: Use Mouse Wheel to Zoom, Click and Drag to Pan.");
 
-    // Progress Bar
     progressBar = new QProgressBar();
     progressBar->setValue(0);
     progressBar->setTextVisible(false);
     progressBar->setFixedHeight(10);
 
-    // Assemble Right Panel
     rightLayout->addWidget(btnLoad);
     rightLayout->addWidget(comboTech);
     rightLayout->addWidget(btnApply);
+    rightLayout->addWidget(btnBatch);
     rightLayout->addSpacing(20);
     rightLayout->addWidget(new QLabel("Analysis Metrics:"));
     rightLayout->addWidget(textMetrics);
-    rightLayout->addSpacing(20);
+    rightLayout->addSpacing(30);
     rightLayout->addWidget(btnExport);
     rightLayout->addWidget(btnReset);
     rightLayout->addWidget(progressBar);
-    rightLayout->addStretch(); // Pushes everything up
+    rightLayout->addStretch();
 
-    // Add panels to main layout
     mainLayout->addWidget(leftPanel);
     mainLayout->addWidget(rightPanel);
 }
 
 MainWindow::~MainWindow() {}
 
-void MainWindow::displayImage(const cv::Mat& img, QLabel* label) {
+void MainWindow::displayImage(const cv::Mat& img, QGraphicsScene* scene) {
     if (img.empty()) return;
     QImage qimg;
     if (img.channels() == 1) {
@@ -135,7 +141,9 @@ void MainWindow::displayImage(const cv::Mat& img, QLabel* label) {
         cv::cvtColor(img, rgb, cv::COLOR_BGR2RGB);
         qimg = QImage(rgb.data, rgb.cols, rgb.rows, rgb.step, QImage::Format_RGB888).copy();
     }
-    label->setPixmap(QPixmap::fromImage(qimg).scaled(label->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    scene->clear();
+    scene->addPixmap(QPixmap::fromImage(qimg));
+    scene->setSceneRect(qimg.rect());
 }
 
 void MainWindow::updateMetadata(const QString& fileName, const cv::Mat& img) {
@@ -145,16 +153,7 @@ void MainWindow::updateMetadata(const QString& fileName, const cv::Mat& img) {
     textMetrics->append(QString("File: %1").arg(fileInfo.fileName()));
     textMetrics->append(QString("Size: %1 x %2").arg(img.cols).arg(img.rows));
     textMetrics->append(QString("Channels: %1").arg(img.channels()));
-    textMetrics->append(QString("Disk Size: %1 KB").arg(fileInfo.size() / 1024));
-    textMetrics->append("\nAwaiting Processing...");
-}
-
-void MainWindow::updateMetrics(const QString& techName, double mse, double psnr, double ssim) {
-    textMetrics->append("\n--- METRICS ---");
-    textMetrics->append(QString("Technique: %1").arg(techName));
-    textMetrics->append(QString("MSE:  %1").arg(mse, 0, 'f', 2));
-    textMetrics->append(QString("PSNR: %1 dB").arg(psnr, 0, 'f', 2));
-    textMetrics->append(QString("SSIM: %1").arg(ssim, 0, 'f', 4));
+    textMetrics->append("\n💡 TIP: Mouse Wheel to Zoom, Drag to Pan.");
 }
 
 void MainWindow::on_btnLoad_clicked() {
@@ -162,23 +161,15 @@ void MainWindow::on_btnLoad_clicked() {
     if (fileName.isEmpty()) return;
 
     originalImage = cv::imread(fileName.toStdString());
-    if (originalImage.empty()) {
-        QMessageBox::warning(this, "Error", "Could not load image!");
-        return;
-    }
+    if (originalImage.empty()) return;
 
-    displayImage(originalImage, labelOriginal);
-    labelEnhaced->clear();
-    labelEnhaced->setText("Awaiting Processing...");
+    displayImage(originalImage, sceneOriginal);
+    sceneEnhanced->clear();
     updateMetadata(fileName, originalImage);
-    progressBar->setValue(100);
 }
 
 void MainWindow::on_btnApply_clicked() {
-    if (originalImage.empty()) {
-        QMessageBox::warning(this, "Error", "Please load an image first!");
-        return;
-    }
+    if (originalImage.empty()) return;
 
     int index = comboTech->currentIndex();
     switch(index) {
@@ -190,16 +181,14 @@ void MainWindow::on_btnApply_clicked() {
     case 5: enhancedImage = rs::sobelEdge(originalImage); break;
     }
 
-    displayImage(enhancedImage, labelEnhaced);
+    displayImage(enhancedImage, sceneEnhanced);
 
     cv::Mat refImg = (enhancedImage.channels() == 1) ? rs::toGray(originalImage) : originalImage;
-    double mse = rs::computeMSE(refImg, enhancedImage);
     double psnr = rs::computePSNR(refImg, enhancedImage);
     double ssim = rs::computeSSIM(refImg, enhancedImage);
     double entropy = rs::computeEntropy(enhancedImage);
     double contrast = rs::computeContrast(enhancedImage);
 
-    // Update the metrics UI directly (or modify updateMetrics to accept these)
     textMetrics->append("\n--- METRICS ---");
     textMetrics->append(QString("Technique: %1").arg(comboTech->currentText()));
     textMetrics->append(QString("PSNR: %1 dB | SSIM: %2").arg(psnr, 0, 'f', 2).arg(ssim, 0, 'f', 4));
@@ -207,22 +196,75 @@ void MainWindow::on_btnApply_clicked() {
 }
 
 void MainWindow::on_btnExport_clicked() {
-    if (enhancedImage.empty()) {
-        QMessageBox::warning(this, "Error", "No processed image to save!");
-        return;
-    }
+    if (enhancedImage.empty()) return;
     QString fileName = QFileDialog::getSaveFileName(this, "Save Image", "data/enhanced/output.png", "PNG (*.png);;JPEG (*.jpg)");
     if (fileName.isEmpty()) return;
-    if (cv::imwrite(fileName.toStdString(), enhancedImage)) {
-        QMessageBox::information(this, "Success", "Image saved successfully!");
-    }
+    cv::imwrite(fileName.toStdString(), enhancedImage);
 }
 
 void MainWindow::on_btnReset_clicked() {
     if (!originalImage.empty()) {
         enhancedImage = cv::Mat();
-        displayImage(originalImage, labelEnhaced);
-        labelEnhaced->setText("Reset to Original");
-        updateMetadata("Reset", originalImage);
+        sceneEnhanced->clear();
     }
+}
+
+void MainWindow::on_btnBatch_clicked() {
+    QString dirName = QFileDialog::getExistingDirectory(this, "Select Folder with Images", "data/raw");
+    if (dirName.isEmpty()) return;
+
+    QString outDir = dirName + "/batch_output";
+    QDir().mkpath(outDir);
+
+    std::string csvPath = (dirName + "/batch_results.csv").toStdString();
+    std::ofstream csv(csvPath);
+    csv << "Filename,Technique,PSNR,SSIM,Entropy,Contrast\n";
+
+    int index = comboTech->currentIndex();
+    std::string techName = comboTech->currentText().toStdString();
+
+    QDir dir(dirName);
+    QStringList filters;
+    filters << "*.png" << "*.jpg" << "*.jpeg" << "*.tif" << "*.bmp";
+    dir.setNameFilters(filters);
+    QFileInfoList fileList = dir.entryInfoList();
+
+    int count = 0;
+    textMetrics->append("\n--- BATCH PROCESSING STARTED ---");
+    textMetrics->append(QString("Found %1 images.").arg(fileList.size()));
+
+    for (const QFileInfo &fileInfo : fileList) {
+        cv::Mat img = cv::imread(fileInfo.absoluteFilePath().toStdString());
+        if (img.empty()) continue;
+
+        cv::Mat processed;
+        switch(index) {
+        case 0: processed = rs::clahe(img, 3.0, 8); break;
+        case 1: processed = rs::histEqualize(img); break;
+        case 2: processed = rs::gammaCorrect(img, 0.5); break;
+        case 3: processed = rs::medianFilter(img, 5); break;
+        case 4: processed = rs::unsharpMask(img, 5, 1.0, 1.5); break;
+        case 5: processed = rs::sobelEdge(img); break;
+        }
+
+        std::string outPath = outDir.toStdString() + "/" + fileInfo.baseName().toStdString() + "_enhanced.png";
+        cv::imwrite(outPath, processed);
+
+        cv::Mat refImg = (processed.channels() == 1) ? rs::toGray(img) : img;
+        double psnr = rs::computePSNR(refImg, processed);
+        double ssim = rs::computeSSIM(refImg, processed);
+        double entropy = rs::computeEntropy(processed);
+        double contrast = rs::computeContrast(processed);
+
+        csv << fileInfo.fileName().toStdString() << ","
+            << techName << ","
+            << psnr << "," << ssim << "," << entropy << "," << contrast << "\n";
+
+        count++;
+    }
+
+    csv.close();
+    textMetrics->append(QString("✅ Successfully processed %1 images.").arg(count));
+    textMetrics->append("CSV and images saved to: " + outDir);
+    QMessageBox::information(this, "Batch Complete", QString("Processed %1 images!\nCSV saved.").arg(count));
 }
