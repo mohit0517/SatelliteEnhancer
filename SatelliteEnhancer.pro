@@ -21,7 +21,8 @@ SOURCES += \
     src/nonlinear.cpp \
     src/filters.cpp \
     src/edge_enhance.cpp \
-    src/metrics.cpp
+    src/metrics.cpp \
+    src/spectral_indices.cpp   # <-- ADD THIS
 
 HEADERS += \
     include/preprocess.h \
@@ -30,4 +31,5 @@ HEADERS += \
     include/filters.h \
     include/edge_enhance.h \
     include/metrics.h \
+    include/spectral_indices.h \  # <-- ADD THIS
     src/mainwindow.h

@@ -10,9 +10,11 @@
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include <QWheelEvent>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
 #include <opencv2/opencv.hpp>
 
-// Custom GraphicsView to handle Zoom and Pan
 class ZoomPanView : public QGraphicsView {
     Q_OBJECT
 public:
@@ -29,6 +31,10 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+protected: // <--- MAKE SURE THIS IS HERE
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
+
 private slots:
     void on_btnLoad_clicked();
     void on_btnApply_clicked();
@@ -41,7 +47,6 @@ private:
     cv::Mat originalImage;
     cv::Mat enhancedImage;
 
-    // UI Elements
     QGraphicsScene *sceneOriginal;
     QGraphicsScene *sceneEnhanced;
     ZoomPanView *viewOriginal;

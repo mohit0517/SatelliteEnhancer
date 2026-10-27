@@ -20,7 +20,10 @@
 #include "metrics.h"
 #include <QDesktopServices>
 #include <QUrl>
-
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include "spectral_indices.h"
 // --- Custom Zoom/Pan Class ---
 ZoomPanView::ZoomPanView(QWidget *parent) : QGraphicsView(parent) {
     setDragMode(QGraphicsView::ScrollHandDrag);
@@ -39,6 +42,7 @@ void ZoomPanView::wheelEvent(QWheelEvent *event) {
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setWindowTitle("Remote Sensing & GIS Image Analysis");
     resize(1400, 900);
+    setAcceptDrops(true);
 
     setStyleSheet(
         "QMainWindow { background-color: #1e1e2e; }"
@@ -91,7 +95,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(btnLoad, &QPushButton::clicked, this, &MainWindow::on_btnLoad_clicked);
 
     comboTech = new QComboBox();
-    comboTech->addItems({"CLAHE", "Histogram Equalization", "Gamma Correction", "Median Filter", "Unsharp Mask", "Sobel Edge"});
+    comboTech->addItems({"CLAHE", "Histogram Equalization", "Gamma Correction", "Median Filter", "Unsharp Mask", "Sobel Edge","NDVI (Vegetation)","NDWI (Water)", "NDSI (Snow)"});
 
     QPushButton *btnApply = new QPushButton("⚡ Apply Enhancement");
     connect(btnApply, &QPushButton::clicked, this, &MainWindow::on_btnApply_clicked);
@@ -136,6 +140,28 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 }
 
 MainWindow::~MainWindow() {}
+void MainWindow::dragEnterEvent(QDragEnterEvent *event) {
+    if (event->mimeData()->hasUrls()) {
+        event->acceptProposedAction();
+    }
+}
+
+void MainWindow::dropEvent(QDropEvent *event) {
+    const QMimeData *mimeData = event->mimeData();
+    if (mimeData->hasUrls()) {
+        QList<QUrl> urlList = mimeData->urls();
+        QString fileName = urlList.at(0).toLocalFile();
+
+        // Load the dropped image
+        originalImage = cv::imread(fileName.toStdString());
+        if (!originalImage.empty()) {
+            displayImage(originalImage, sceneOriginal);
+            sceneEnhanced->clear();
+            updateMetadata(fileName, originalImage);
+            textMetrics->append("\n✅ Image loaded via Drag & Drop!");
+        }
+    }
+}
 
 void MainWindow::displayImage(const cv::Mat& img, QGraphicsScene* scene) {
     if (img.empty()) return;
@@ -185,6 +211,9 @@ void MainWindow::on_btnApply_clicked() {
     case 3: enhancedImage = rs::medianFilter(originalImage, 5); break;
     case 4: enhancedImage = rs::unsharpMask(originalImage, 5, 1.0, 1.5); break;
     case 5: enhancedImage = rs::sobelEdge(originalImage); break;
+    case 6: enhancedImage = rs::computeNDVI(originalImage); break;
+    case 7: enhancedImage = rs::computeNDWI(originalImage); break;
+    case 8: enhancedImage = rs::computeNDSI(originalImage); break;
     }
 
     displayImage(enhancedImage, sceneEnhanced);
@@ -251,6 +280,9 @@ void MainWindow::on_btnBatch_clicked() {
         case 3: processed = rs::medianFilter(img, 5); break;
         case 4: processed = rs::unsharpMask(img, 5, 1.0, 1.5); break;
         case 5: processed = rs::sobelEdge(img); break;
+        case 6: processed = rs::computeNDVI(img); break;
+        case 7: processed = rs::computeNDWI(img); break;
+        case 8: processed = rs::computeNDSI(img); break;
         }
 
         std::string outPath = outDir.toStdString() + "/" + fileInfo.baseName().toStdString() + "_enhanced.png";

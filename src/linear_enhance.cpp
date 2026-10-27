@@ -95,19 +95,26 @@ cv::Mat histEqualize(const cv::Mat& src) {
 //  CLAHE
 // ============================================================
 cv::Mat clahe(const cv::Mat& src, double clipLimit, int tileSize) {
-    cv::Ptr<cv::CLAHE> claheOp = cv::createCLAHE(clipLimit,
-                                                 cv::Size(tileSize, tileSize));
+    cv::Ptr<cv::CLAHE> claheOp = cv::createCLAHE(clipLimit, cv::Size(tileSize, tileSize));
     cv::Mat out = src.clone();
 
     if (src.channels() == 1) {
+        // Grayscale image
         claheOp->apply(src, out);
     } else {
+        // Color image: Convert to LAB color space
         cv::Mat lab;
         cv::cvtColor(src, lab, cv::COLOR_BGR2Lab);
-        std::vector<cv::Mat> chans;
-        cv::split(lab, chans);
-        claheOp->apply(chans[0], chans[0]);
-        cv::merge(chans, lab);
+
+        // Split into L, A, B channels
+        std::vector<cv::Mat> channels;
+        cv::split(lab, channels);
+
+        // Apply CLAHE ONLY to the L channel (Luminance)
+        claheOp->apply(channels[0], channels[0]);
+
+        // Merge back and convert to BGR
+        cv::merge(channels, lab);
         cv::cvtColor(lab, out, cv::COLOR_Lab2BGR);
     }
     return out;
