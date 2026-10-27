@@ -35,6 +35,7 @@ private slots:
     void on_btnExport_clicked();
     void on_btnReset_clicked();
     void on_btnBatch_clicked();
+    void on_btnOpenFolder_clicked();
 
 private:
     cv::Mat originalImage;

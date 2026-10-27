@@ -18,6 +18,8 @@
 #include "filters.h"
 #include "edge_enhance.h"
 #include "metrics.h"
+#include <QDesktopServices>
+#include <QUrl>
 
 // --- Custom Zoom/Pan Class ---
 ZoomPanView::ZoomPanView(QWidget *parent) : QGraphicsView(parent) {
@@ -97,6 +99,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     QPushButton *btnBatch = new QPushButton("📂 Batch Process Folder");
     connect(btnBatch, &QPushButton::clicked, this, &MainWindow::on_btnBatch_clicked);
 
+    QPushButton *btnOpenFolder = new QPushButton("📁 Open Output Folder");
+    connect(btnOpenFolder, &QPushButton::clicked, this, &MainWindow::on_btnOpenFolder_clicked);
+
     QPushButton *btnExport = new QPushButton("💾 Export Processed Image");
     connect(btnExport, &QPushButton::clicked, this, &MainWindow::on_btnExport_clicked);
 
@@ -116,6 +121,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     rightLayout->addWidget(comboTech);
     rightLayout->addWidget(btnApply);
     rightLayout->addWidget(btnBatch);
+    rightLayout->addWidget(btnOpenFolder);
     rightLayout->addSpacing(20);
     rightLayout->addWidget(new QLabel("Analysis Metrics:"));
     rightLayout->addWidget(textMetrics);
@@ -267,4 +273,18 @@ void MainWindow::on_btnBatch_clicked() {
     textMetrics->append(QString("✅ Successfully processed %1 images.").arg(count));
     textMetrics->append("CSV and images saved to: " + outDir);
     QMessageBox::information(this, "Batch Complete", QString("Processed %1 images!\nCSV saved.").arg(count));
+}
+void MainWindow::on_btnOpenFolder_clicked() {
+    // The default output folder we use for batch processing
+    QString outDir = "data/raw/batch_output";
+
+    // Check if the folder actually exists before trying to open it
+    QDir dir(outDir);
+    if (!dir.exists()) {
+        QMessageBox::warning(this, "Error", "Output folder not found!\nPlease run a Batch Process first.");
+        return;
+    }
+
+    // Open the folder in Windows Explorer
+    QDesktopServices::openUrl(QUrl::fromLocalFile(dir.absolutePath()));
 }
